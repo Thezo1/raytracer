@@ -23,6 +23,14 @@ typedef struct
 
 typedef struct
 {
+    u32 light_index;
+    f32 i;
+    v3 direction;
+    v3 position;
+}Light;
+
+typedef struct
+{
     u32 material_count;
     Material *materials;
 
@@ -31,5 +39,8 @@ typedef struct
 
     u32 sphere_count;
     Sphere *spheres;
+
+    u32 light_count;
+    Light *lights;
 }World;
 #endif
