@@ -1,4 +1,13 @@
 // NOTE: Just to get it working initially
+/*
+ * TODO:
+ * Reflections and shadows
+ * other primitives:
+ *  Triangles(obj file parsing)
+ *  Cubes
+ *  Cylinders
+ * constructive solid geometry
+ */
 #include<stdio.h>
 #include<stdlib.h>
 #include "ray_math.h"
@@ -191,7 +200,7 @@ int main()
     materials[0].specular = -1.0f;
 
     materials[1].color = V3(0.2f, 0.4f, 0.8f);
-    materials[1].specular = 10.0f;
+    materials[1].specular = 1000.0f;
 
     materials[2].color = V3(0.7f, 0.5f, 0.3f);
     materials[2].specular = 500.0f;
