@@ -1,3 +1,4 @@
+// NOTE: Just to get it working initially
 #include<stdio.h>
 #include<stdlib.h>
 #include "ray_math.h"
@@ -7,29 +8,6 @@
 #define HEIGHT 720
 
 static u32 IMAGE[HEIGHT][WIDTH];
-
-void fill_image()
-{
-    for(int y = 0; 
-            y < HEIGHT; 
-            ++y)
-    {
-        for(int x = 0; 
-                x < WIDTH; 
-                ++x)
-        {
-            if(y == (HEIGHT-1))
-            {
-                IMAGE[y][x] = 0xff00ff00;
-            }
-            else
-            {
-                IMAGE[y][x] = 0xff180018;
-            }
-        }
-        
-    }
-}
 
 void save_to_ppm(const char *filename)
 {
@@ -67,8 +45,9 @@ void save_to_ppm(const char *filename)
     fclose(file);
 }
 
-f32 compute_light(World *world, v3 N, v3 P)
+f32 compute_light(World *world, v3 N, v3 P, v3 V, f32 specular)
 {
+    V = v3_neg(V);
     f32 i = 0.0f;
     for(u32 light_index = 0;
             light_index < world->light_count;
@@ -78,30 +57,46 @@ f32 compute_light(World *world, v3 N, v3 P)
         Light light = world->lights[light_index];
         v3 L;
 
-        switch(light.light_index)
+        if(light.light_index == 0)
         {
-            case(0):
-            {
-                i += light.i;
-            }break;
-
-            case(1):
-            {
-                L = v3_add(light.position, P);
-            }break;
-
-            case(2):
-            {
-                L = light.direction;
-            }break;
+            i += light.i;
+        }
+        if(light.light_index == 1)
+        {
+            L = v3_sub(light.position, P);
+        }
+        if(light.light_index == 2)
+        {
+            L = NOZ(light.direction);
         }
 
         f32 tolerance = 0.0001f;
         f32 n_dot_l = dot(N, L);
         if(n_dot_l > tolerance)
         {
-            i += light.i * n_dot_l/(length(N) * length(L));
+            i += light.i * (n_dot_l/(length(N) * length(L)));
         }
+
+        if(specular > tolerance)
+        {
+            v3 R = v3_sub(v3_scalar_mul(N, (2*dot(N, L))), L);
+            f32 r_dot_v = dot(R, V);
+
+            if(r_dot_v > tolerance)
+            {
+                f32 base = r_dot_v/(length(R) * length(V)) ;
+                i += light.i * POW(base, specular);
+            }
+        }
+    }
+
+    if(i > 1)
+    {
+        i = 1;
+    }
+    if(i < 0)
+    {
+        i = 0;
     }
 
     return(i);
@@ -125,7 +120,12 @@ v3 ray_cast(World *world, v3 ray_origin, v3 ray_direction)
             if((t > 0) && (t < hit_distance))
             {
                 hit_distance = t;
-                result = world->materials[plane.mat_index].color;
+                v3 P = v3_add(ray_origin, v3_scalar_mul(ray_direction, t));
+                v3 N = plane.N;
+                f32 specular = world->materials[plane.mat_index].specular;
+                f32 L = compute_light(world, N, P, ray_direction, specular);
+
+                result = v3_scalar_mul(world->materials[plane.mat_index].color, L);
             }
         }
     }
@@ -156,10 +156,11 @@ v3 ray_cast(World *world, v3 ray_origin, v3 ray_direction)
             if((t > 0) && (t < hit_distance))
             {
                 hit_distance = t;
-                v3 P = v3_add(ray_origin, v3_scalar_mul(ray_direction, t1));
-                v3 N = v3_sub(P, sphere.point);
+                v3 P = v3_add(ray_origin, v3_scalar_mul(ray_direction, t));
+                v3 N = NOZ(v3_sub(P, sphere.point));
+                f32 specular = world->materials[sphere.mat_index].specular;
+                f32 L = compute_light(world, N, P, ray_direction, specular);
 
-                f32 L = compute_light(world, N, P);
                 result = v3_scalar_mul(world->materials[sphere.mat_index].color, L);
             }
         }
@@ -185,10 +186,18 @@ u32 pack_color(v3 color)
 
 int main()
 {
-    Material materials[3] = {};
+    Material materials[4] = {};
     materials[0].color = V3(0.3f, 0.3f, 0.3f);
-    materials[1].color = V3(0.5f, 0.5f, 0.5f);
+    materials[0].specular = -1.0f;
+
+    materials[1].color = V3(0.2f, 0.4f, 0.8f);
+    materials[1].specular = 10.0f;
+
     materials[2].color = V3(0.7f, 0.5f, 0.3f);
+    materials[2].specular = 500.0f;
+
+    materials[3].color = V3(0.3f, 1.0f, 0.3f);
+    materials[3].specular = 1000.0f;
 
     Plane plane = {};
     plane.N = V3(0, 0, 1);
@@ -203,7 +212,7 @@ int main()
     Sphere sphere2 = {};
     sphere2.r = 1.0f;
     sphere2.point = V3(3, 5, 2);
-    sphere2.mat_index = 2;
+    sphere2.mat_index = 3;
 
     Sphere spheres[2] = {};
     spheres[0] = sphere;
@@ -211,7 +220,7 @@ int main()
 
     // NOTE: light_index 0 for ambient, 1 for point, 2 for directional
     // TODO: Switch to a better way for storing the types of light
-    Light lights[3] = {};
+    Light lights[4] = {};
 
     Light ambient_light = {};
     ambient_light.light_index = 0;
@@ -219,8 +228,13 @@ int main()
 
     Light point_light = {};
     point_light.light_index = 1;
-    point_light.i = 0.6;
-    point_light.position = V3(2.0f, 1.0f, 0.0f);
+    point_light.i = 0.25f;
+    point_light.position = V3(0.0f, -10.0f, 1.0f);
+
+    Light point_light1 = {};
+    point_light1.light_index = 1;
+    point_light1.i = 0.25f;
+    point_light1.position = V3(5.0f, 20.0f, 10.0f);
 
     Light directional_light = {};
     directional_light.light_index = 2;
@@ -230,15 +244,16 @@ int main()
     lights[0] = ambient_light;
     lights[1] = point_light;
     lights[2] = directional_light;
+    lights[3] = point_light1;
 
     World world = {};
-    world.material_count = 1;
+    world.material_count = 4;
     world.materials = materials;
     world.plane_count = 1;
     world.planes = &plane;
     world.sphere_count = 2;
     world.spheres = spheres;
-    world.light_count = 3;
+    world.light_count = 4;
     world.lights = lights;
 
     v3 camera_p = V3(0, -10, 1);

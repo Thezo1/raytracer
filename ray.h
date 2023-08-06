@@ -5,6 +5,7 @@
 typedef struct
 {
     v3 color;
+    f32 specular;
 }Material;
 
 typedef struct

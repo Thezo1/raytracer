@@ -186,5 +186,12 @@ extern inline v4 V4(f32 A, f32 B, f32 C, f32 D)
     return(result);
 }
 
-#endif
+#include<math.h>
+extern inline f32 POW(f32 B, f32 P)
+{
+    f32 result = (f32)pow(B, P);
 
+    return(result);
+}
+
+#endif

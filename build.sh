@@ -2,7 +2,6 @@
 
 set -xe
 
-gcc -g main.c -o raytracer -lm -DDEBUG=1
+gcc -g main.c -o raytracer -lm
 
 ./raytracer
-feh ./output.ppm
