@@ -1,18 +1,12 @@
-// NOTE: Just to get it working initially
-/*
- * TODO:
- * Reflections and shadows
- * other primitives:
- *  Triangles(obj file parsing)
- *  Cubes
- *  Cylinders
- * constructive solid geometry
- */
 #include<stdio.h>
 #include<stdlib.h>
-#include "ray_math.h"
-#include "ray.h"
+#include<stdbool.h>
 
+#include "./ray.h"
+#include "./ray_math.h"
+#include<SDL2/SDL.h>
+
+// #define ASPECT_RATIO 16.0f/9.0f
 #define WIDTH 1280
 #define HEIGHT 720
 
@@ -21,7 +15,7 @@ static u32 IMAGE[HEIGHT][WIDTH];
 void save_to_ppm(const char *filename)
 {
     FILE *file;
-    file = fopen("output.ppm", "wb");
+    file = fopen(filename, "wb");
     if(!file)
     {
         printf("Cannot open file");
@@ -54,96 +48,21 @@ void save_to_ppm(const char *filename)
     fclose(file);
 }
 
-f32 compute_light(World *world, v3 N, v3 P, v3 V, f32 specular)
-{
-    V = v3_neg(V);
-    f32 i = 0.0f;
-    for(u32 light_index = 0;
-            light_index < world->light_count;
-            ++light_index)
-    {
-
-        Light light = world->lights[light_index];
-        v3 L;
-
-        if(light.light_index == 0)
-        {
-            i += light.i;
-        }
-        if(light.light_index == 1)
-        {
-            L = v3_sub(light.position, P);
-        }
-        if(light.light_index == 2)
-        {
-            L = NOZ(light.direction);
-        }
-
-        f32 tolerance = 0.0001f;
-        f32 n_dot_l = dot(N, L);
-        if(n_dot_l > tolerance)
-        {
-            i += light.i * (n_dot_l/(length(N) * length(L)));
-        }
-
-        if(specular > tolerance)
-        {
-            v3 R = v3_sub(v3_scalar_mul(N, (2*dot(N, L))), L);
-            f32 r_dot_v = dot(R, V);
-
-            if(r_dot_v > tolerance)
-            {
-                f32 base = r_dot_v/(length(R) * length(V)) ;
-                i += light.i * POW(base, specular);
-            }
-        }
-    }
-
-    if(i > 1)
-    {
-        i = 1;
-    }
-    if(i < 0)
-    {
-        i = 0;
-    }
-
-    return(i);
-}
-
 v3 ray_cast(World *world, v3 ray_origin, v3 ray_direction)
 {
-    v3 result = world->materials[0].color;
+    v3 result = V3(0.0f, 0.0f, 0.0f);
     f32 hit_distance = F32MAX;
-    f32 tolerance = 0.0001f;
 
-    for(u32 plane_index = 0;
-            plane_index < world->plane_count;
-            ++plane_index)
-    {
-        Plane plane = world->planes[plane_index];
-        f32 denom = dot(plane.N, ray_direction);
-        if((denom < -tolerance) > (denom > tolerance))
-        {
-            f32 t = (-plane.d - dot(plane.N, ray_origin)) / denom;
-            if((t > 0) && (t < hit_distance))
-            {
-                hit_distance = t;
-                v3 P = v3_add(ray_origin, v3_scalar_mul(ray_direction, t));
-                v3 N = plane.N;
-                f32 specular = world->materials[plane.mat_index].specular;
-                f32 L = compute_light(world, N, P, ray_direction, specular);
-
-                result = v3_scalar_mul(world->materials[plane.mat_index].color, L);
-            }
-        }
-    }
+    f32 a = 0.5f * (ray_direction.y + 1.0f);
+    v3 light_direction = NOZ(V3(-1.0f, -1.0f, -1.0f));
+    // result = v3_add(v3_scalar_mul(V3(1.0f, 1.0f, 1.0f), (1.0f - a)), v3_scalar_mul(V3(0.5f, 0.7f, 1.0f), a));
 
     for(u32 sphere_index = 0;
             sphere_index < world->sphere_count;
             ++sphere_index)
     {
         Sphere sphere = world->spheres[sphere_index];
+
         v3 co = v3_sub(ray_origin, sphere.point);
 
         f32 a = dot(ray_direction, ray_direction);
@@ -151,7 +70,7 @@ v3 ray_cast(World *world, v3 ray_origin, v3 ray_direction)
         f32 c = dot(co, co) - sphere.r * sphere.r;
         f32 discriminant = (b * b) - (4 * a * c);
 
-        if(discriminant > tolerance)
+        if(discriminant > 0.0f)
         {
             f32 t1 = (-b + square_root(discriminant)) / (2 * a);
             f32 t2 = (-b - square_root(discriminant)) / (2 * a);
@@ -164,13 +83,43 @@ v3 ray_cast(World *world, v3 ray_origin, v3 ray_direction)
 
             if((t > 0) && (t < hit_distance))
             {
+                v3 hit_point = v3_add(ray_origin, v3_scalar_mul(ray_direction, t));
+                v3 N = NOZ(v3_sub(hit_point, sphere.point));
                 hit_distance = t;
-                v3 P = v3_add(ray_origin, v3_scalar_mul(ray_direction, t));
-                v3 N = NOZ(v3_sub(P, sphere.point));
-                f32 specular = world->materials[sphere.mat_index].specular;
-                f32 L = compute_light(world, N, P, ray_direction, specular);
 
-                result = v3_scalar_mul(world->materials[sphere.mat_index].color, L);
+                f32 d = dot(N, v3_neg(light_direction));
+                if(d < 0.0f)
+                {
+                    d = 0.0f;
+                }
+
+                // v3 normal_color = v3_scalar_mul(V3((N.x + 1.0f), (N.y + 1.0f), (N.z + 1.0f)), 0.5f);
+                v3 sphere_color = v3_scalar_mul(world->materials[sphere.mat_index].color, d);
+                result = sphere_color;
+            }
+        }
+
+    }
+    for(u32 plane_index = 0;
+            plane_index < world->plane_count;
+            ++plane_index)
+    {
+        Plane plane = world->planes[plane_index];
+        f32 denom = dot(plane.N, ray_direction);
+        if((denom < -0.001) > (denom > 0.001))
+        {
+            f32 t = (-plane.d - dot(plane.N, ray_origin)) / denom;
+            if((t > 0) && (t < hit_distance))
+            {
+                hit_distance = t;
+                f32 d = dot(plane.N, v3_neg(light_direction));
+                if(d < 0.0f)
+                {
+                    d = 0.0f;
+                }
+
+                v3 plane_color = world->materials[plane.mat_index].color;
+                result = v3_scalar_mul(plane_color, d);
             }
         }
     }
@@ -178,142 +127,224 @@ v3 ray_cast(World *world, v3 ray_origin, v3 ray_direction)
     return(result);
 }
 
-u32 pack_color(v3 color)
+void update_window(SDL_Renderer *renderer, SDL_Texture *texture, void *memory, u32 pitch)
 {
-    u32 result;
+    if(texture)
+    {
+        SDL_UpdateTexture(texture, NULL, memory, pitch);
 
-    u32 r = (u32)(color.x * 255);
-    u32 g = (u32)(color.y * 255);
-    u32 b = (u32)(color.z * 255);
+        int offset_x = 0;
+        int offset_y = 0;
+        SDL_Rect src_rect = {0, 0, WIDTH, HEIGHT};
+        SDL_Rect dst_rect = {offset_x, offset_y, WIDTH, HEIGHT};
 
-    result = (b << 8*2) | 
-             (g << 8*1) | 
-             (r << 8*0);
-
-    return(result);
+        SDL_RenderCopy(renderer, texture, &src_rect, &dst_rect);
+        SDL_RenderPresent(renderer);
+    }
+    else
+    {
+        printf("Unable to create Texture %s\n", SDL_GetError());
+        exit(1);
+    }
 }
 
-int main()
+void draw_gradient(void *memory, u32 pitch)
 {
-    Material materials[4] = {};
-    materials[0].color = V3(0.3f, 0.3f, 0.3f);
-    materials[0].specular = -1.0f;
-
-    materials[1].color = V3(0.2f, 0.4f, 0.8f);
-    materials[1].specular = 1000.0f;
-
-    materials[2].color = V3(0.7f, 0.5f, 0.3f);
-    materials[2].specular = 500.0f;
-
-    materials[3].color = V3(0.3f, 1.0f, 0.3f);
-    materials[3].specular = 1000.0f;
-
-    Plane plane = {};
-    plane.N = V3(0, 0, 1);
-    plane.d = 0;
-    plane.mat_index = 1;
-
-    Sphere sphere = {};
-    sphere.r = 1.0f;
-    sphere.point = V3(0, 0, 0);
-    sphere.mat_index = 2;
-
-    Sphere sphere2 = {};
-    sphere2.r = 1.0f;
-    sphere2.point = V3(3, 5, 2);
-    sphere2.mat_index = 3;
-
-    Sphere spheres[2] = {};
-    spheres[0] = sphere;
-    spheres[1] = sphere2;
-
-    // NOTE: light_index 0 for ambient, 1 for point, 2 for directional
-    // TODO: Switch to a better way for storing the types of light
-    Light lights[4] = {};
-
-    Light ambient_light = {};
-    ambient_light.light_index = 0;
-    ambient_light.i = 0.2;
-
-    Light point_light = {};
-    point_light.light_index = 1;
-    point_light.i = 0.25f;
-    point_light.position = V3(0.0f, -10.0f, 1.0f);
-
-    Light point_light1 = {};
-    point_light1.light_index = 1;
-    point_light1.i = 0.25f;
-    point_light1.position = V3(5.0f, 20.0f, 10.0f);
-
-    Light directional_light = {};
-    directional_light.light_index = 2;
-    directional_light.i = 0.2;
-    directional_light.direction = V3(1.0f, 4.0f, 4.0f);
-
-    lights[0] = ambient_light;
-    lights[1] = point_light;
-    lights[2] = directional_light;
-    lights[3] = point_light1;
-
-    World world = {};
-    world.material_count = 4;
-    world.materials = materials;
-    world.plane_count = 1;
-    world.planes = &plane;
-    world.sphere_count = 2;
-    world.spheres = spheres;
-    world.light_count = 4;
-    world.lights = lights;
-
-    v3 camera_p = V3(0, -10, 1);
-    v3 camera_z = NOZ(camera_p);
-    v3 camera_x = NOZ(cross(camera_z, V3(0, 0, 1)));
-    v3 camera_y = NOZ(cross(camera_z, camera_x));
-
-    f32 canvas_dist = 1.0f;
-    f32 canvas_width = 1.0f;
-    f32 canvas_height = 1.0f;
-    if(WIDTH > HEIGHT)
+    u8 *row = (u8 *)memory;
+    for(int y = 0;
+            y < HEIGHT;
+            ++y)
     {
-        canvas_height = canvas_width * ((f32)HEIGHT / (f32)WIDTH);
-    }
-    else if(HEIGHT > WIDTH)
-    {
-        canvas_width = canvas_height * ((f32)WIDTH / (f32)HEIGHT);
+        u32 *pixel = (u32 *)row;
+        for(int x = 0;
+                x < WIDTH;
+                ++x)
+        {
+            u8 blue = x;
+            u8 red = y;
+            *pixel++ = ((red << 16) | blue);
+        }
+        row += pitch;
     }
 
-    f32 half_canvas_width = 0.5f*canvas_width;
-    f32 half_canvas_heigth = 0.5f*canvas_height;
-    v3 canvas_c = v3_sub(camera_p, v3_scalar_mul(camera_z, canvas_dist));
+}
+
+void render_scene(void *memory, u32 pitch, World *world, Camera camera)
+{
+#if 1
 
     for(int y = 0; 
             y < HEIGHT; 
             ++y)
     {
-        f32 canvas_y = -1.0f + 2.0f*((f32)y / (f32)HEIGHT);
         for(int x = 0; 
                 x < WIDTH; 
                 ++x)
         {
-            f32 canvas_x = -1.0f + 2.0f*((f32)x / (f32) WIDTH);
-            v3 canvas_p = v3_add(canvas_c, v3_add(v3_scalar_mul(camera_x, half_canvas_width*canvas_x), v3_scalar_mul(camera_y, half_canvas_heigth*canvas_y)));
 
-            v3 ray_origin = camera_p;
-            v3 ray_direction = NOZ(v3_sub(canvas_p, camera_p));
+            v3 pixel_center = v3_add(camera.origin_pixel, v3_add(v3_scalar_mul(camera.delta_u, x), v3_scalar_mul(camera.delta_v, y)));
 
-            v3 color = ray_cast(&world, ray_origin, ray_direction);
+            v3 ray_origin = camera.position;
+            v3 ray_direction = NOZ(v3_sub(pixel_center, ray_origin));
 
-            u32 packed_color = pack_color(color);
+            v3 packed_color = ray_cast(world, ray_origin, ray_direction);
 
-            IMAGE[y][x] = packed_color;
+            u32 color = pack_color_be(packed_color);
+
+            IMAGE[y][x] = color;
+
         }
         printf("\rRaying %d%%...    ", 100 * y / HEIGHT);
-        fflush(stdout);
-        
     }
-    fprintf(stdout, "\nFinished\n");
 
+    printf("Done...\n");
     save_to_ppm("output.ppm");
-    printf("Hello Someone\n");
+
+#else
+
+    u8 *row = (u8*)memory;
+    for(int y = 0; 
+            y < HEIGHT; 
+            ++y)
+    {
+        u32 *pixel = (u32 *)row;
+        for(int x = 0; 
+                x < WIDTH; 
+                ++x)
+        {
+
+            v3 pixel_center = v3_add(camera.origin_pixel, v3_add(v3_scalar_mul(camera.delta_u, x), v3_scalar_mul(camera.delta_v, y)));
+
+            v3 ray_origin = camera.position;
+            v3 ray_direction = NOZ(v3_sub(pixel_center, ray_origin));
+
+            v3 packed_color = ray_cast(world, ray_origin, ray_direction);
+
+            u32 color = pack_color_be(packed_color);
+
+            *pixel++ = color;
+
+        }
+        row += pitch;
+        // printf("\rRaying %d%%...    ", 100 * y / HEIGHT);
+    }
+
+    // printf("Done...\n");
+
+#endif
+}
+
+int main()
+{
+    Material materials[2] = {};
+    materials[0].color = V3(0.7f, 0.5f, 0.3f);
+    materials[0].specular = -1.0f;
+
+    materials[1].color = V3(0.3f, 0.2f, 0.3f);
+    materials[1].specular = -1.0f;
+
+    
+    Sphere sphere = {};
+    sphere.r = 1.0f;
+    sphere.point = V3(0, 0, -5);
+    sphere.mat_index = 0;
+
+    Plane plane = {};
+    plane.N = V3(0.0f, 2.0f, 0.0f);
+    plane.d = 1.0f;
+    plane.mat_index = 1;
+
+    World world = {};
+    world.materials = materials;
+    world.material_count = 2;
+    world.sphere_count = 1;
+    world.spheres = &sphere;
+    world.plane_count = 1;
+    world.planes = &plane;
+
+    f32 viewport_dist = 1.0f;
+    f32 viewport_height = 2.0f;
+    f32 viewport_width = 2.0f;
+    if(WIDTH > HEIGHT)
+    {
+        viewport_height = viewport_width * ((f32)HEIGHT/(f32)WIDTH);
+    }
+
+    if(HEIGHT > WIDTH)
+    {
+        viewport_width = viewport_height * ((f32)WIDTH/(f32)HEIGHT);
+    }
+    Camera camera = {};
+
+    v3 viewport_u = V3(viewport_width, 0.0f, 0.0f);
+    v3 viewport_v = V3(0.0f, -viewport_height, 0.0f);
+
+    camera.delta_u = v3_scalar_div(viewport_u, (f32)WIDTH);
+    camera.delta_v = v3_scalar_div(viewport_v, (f32)HEIGHT);
+
+    camera.position = V3(0.0f, 0.0f, 0.0f);
+    v3 camera_to_viewport = v3_sub(camera.position, V3(0.0f, 0.0f, viewport_dist));
+    v3 viewport_upper_left = v3_sub(v3_sub(camera_to_viewport, v3_scalar_div(viewport_u, 2.0f)), v3_scalar_div(viewport_v, 2.0f));
+    camera.origin_pixel = v3_add(viewport_upper_left, v3_scalar_mul(v3_add(camera.delta_u, camera.delta_v), 0.5f));
+
+    u32 bytes_per_pixel = 4;
+    u32 pitch = WIDTH * bytes_per_pixel;
+    void *memory = malloc(WIDTH * HEIGHT * bytes_per_pixel);
+
+#if 1
+    render_scene(memory, pitch, &world, camera);
+#else
+    SDL_Window *window;
+    SDL_Renderer *renderer;
+    SDL_Texture *texture;
+
+    if(SDL_Init(SDL_INIT_VIDEO) < 0)
+    {
+        printf("Unable to initialize sdl %s", SDL_GetError());
+    }
+
+    window = SDL_CreateWindow("RayTraycer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
+            WIDTH, HEIGHT, SDL_WINDOW_MAXIMIZED);
+
+    if(window)
+    {
+
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+        if(renderer)
+        {
+            // TODO: Change to ARGB if I add alpha blending
+            texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, 
+                    SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
+            bool running = 1;
+            render_scene(memory, pitch, &world, camera);
+            while(running)
+            {
+                SDL_Event event;
+                while(SDL_PollEvent(&event))
+                {
+                    switch(event.type)
+                    {
+                        case(SDL_QUIT):
+                        {
+                            running = 0;
+                        }break;
+                    }
+                }
+
+                update_window(renderer, texture, memory, pitch);
+            }
+        }
+        else
+        {
+            printf("Unable to create renderer %s\n", SDL_GetError());
+        }
+    }
+    else
+    {
+        printf("Unable to create window %s\n", SDL_GetError());
+    }
+
+    printf("Hello SDL\n");
+#endif
     return(0);
 }

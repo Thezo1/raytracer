@@ -109,6 +109,27 @@ extern inline v3 v3_scalar_mul(v3 A, f32 S)
     return(result);
 }
 
+extern inline v3 v3_scalar_div(v3 A, f32 S)
+{
+    v3 result;
+    f32 inv = 1/S;
+    result.x = A.x * inv;
+    result.y = A.y * inv;
+    result.z = A.z * inv;
+
+    return(result);
+}
+
+extern inline v3 v3_scalar_add(v3 A, f32 S)
+{
+    v3 result;
+    result.x = A.x + S;
+    result.y = A.y + S;
+    result.z = A.z + S;
+
+    return(result);
+}
+
 extern inline f32 dot(v3 A, v3 B)
 {
     f32 result = A.x * B.x + A.y * B.y + A.z * B.z;
@@ -169,6 +190,7 @@ extern inline v3 NOZ(v3 A)
 }
 
 
+
 typedef struct
 {
     f32 x, y, z, a;
@@ -191,6 +213,43 @@ extern inline f32 POW(f32 B, f32 P)
 {
     f32 result = (f32)pow(B, P);
 
+    return(result);
+}
+
+// NOTE: Don't really know if the disparity between big and little endian
+// id Correct
+extern inline u32 pack_color_le(v3 color)
+{
+    u32 result;
+
+    u32 r = (u32)(color.x * 255);
+    u32 g = (u32)(color.y * 255);
+    u32 b = (u32)(color.z * 255);
+
+    result = (b << 8*2) | 
+             (g << 8*1) | 
+             (r << 8*0);
+
+    return(result);
+}
+
+extern inline u32 pack_color_be(v3 color)
+{
+    u32 result;
+
+    u32 r = (u32)(color.x * 255);
+    u32 g = (u32)(color.y * 255);
+    u32 b = (u32)(color.z * 255);
+
+    result = (b << 8*0) | 
+             (g << 8*1) | 
+             (r << 8*2);
+
+    return(result);
+}
+extern inline f32 FRAND()
+{
+    f32 result = rand()/((f32)RAND_MAX+1.0f);
     return(result);
 }
 

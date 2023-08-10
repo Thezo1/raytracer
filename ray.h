@@ -44,4 +44,13 @@ typedef struct
     u32 light_count;
     Light *lights;
 }World;
+
+typedef struct
+{
+    v3 position;
+    v3 origin_pixel;
+    v3 delta_u;
+    v3 delta_v;
+}Camera;
+
 #endif
