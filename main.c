@@ -127,113 +127,6 @@ v3 ray_cast(World *world, v3 ray_origin, v3 ray_direction)
     return(result);
 }
 
-void update_window(SDL_Renderer *renderer, SDL_Texture *texture, void *memory, u32 pitch)
-{
-    if(texture)
-    {
-        SDL_UpdateTexture(texture, NULL, memory, pitch);
-
-        int offset_x = 0;
-        int offset_y = 0;
-        SDL_Rect src_rect = {0, 0, WIDTH, HEIGHT};
-        SDL_Rect dst_rect = {offset_x, offset_y, WIDTH, HEIGHT};
-
-        SDL_RenderCopy(renderer, texture, &src_rect, &dst_rect);
-        SDL_RenderPresent(renderer);
-    }
-    else
-    {
-        printf("Unable to create Texture %s\n", SDL_GetError());
-        exit(1);
-    }
-}
-
-void draw_gradient(void *memory, u32 pitch)
-{
-    u8 *row = (u8 *)memory;
-    for(int y = 0;
-            y < HEIGHT;
-            ++y)
-    {
-        u32 *pixel = (u32 *)row;
-        for(int x = 0;
-                x < WIDTH;
-                ++x)
-        {
-            u8 blue = x;
-            u8 red = y;
-            *pixel++ = ((red << 16) | blue);
-        }
-        row += pitch;
-    }
-
-}
-
-void render_scene(void *memory, u32 pitch, World *world, Camera camera)
-{
-#if 1
-
-    for(int y = 0; 
-            y < HEIGHT; 
-            ++y)
-    {
-        for(int x = 0; 
-                x < WIDTH; 
-                ++x)
-        {
-
-            v3 pixel_center = v3_add(camera.origin_pixel, v3_add(v3_scalar_mul(camera.delta_u, x), v3_scalar_mul(camera.delta_v, y)));
-
-            v3 ray_origin = camera.position;
-            v3 ray_direction = NOZ(v3_sub(pixel_center, ray_origin));
-
-            v3 packed_color = ray_cast(world, ray_origin, ray_direction);
-
-            u32 color = pack_color_be(packed_color);
-
-            IMAGE[y][x] = color;
-
-        }
-        printf("\rRaying %d%%...    ", 100 * y / HEIGHT);
-    }
-
-    printf("Done...\n");
-    save_to_ppm("output.ppm");
-
-#else
-
-    u8 *row = (u8*)memory;
-    for(int y = 0; 
-            y < HEIGHT; 
-            ++y)
-    {
-        u32 *pixel = (u32 *)row;
-        for(int x = 0; 
-                x < WIDTH; 
-                ++x)
-        {
-
-            v3 pixel_center = v3_add(camera.origin_pixel, v3_add(v3_scalar_mul(camera.delta_u, x), v3_scalar_mul(camera.delta_v, y)));
-
-            v3 ray_origin = camera.position;
-            v3 ray_direction = NOZ(v3_sub(pixel_center, ray_origin));
-
-            v3 packed_color = ray_cast(world, ray_origin, ray_direction);
-
-            u32 color = pack_color_be(packed_color);
-
-            *pixel++ = color;
-
-        }
-        row += pitch;
-        // printf("\rRaying %d%%...    ", 100 * y / HEIGHT);
-    }
-
-    // printf("Done...\n");
-
-#endif
-}
-
 int main()
 {
     Material materials[2] = {};
@@ -274,77 +167,44 @@ int main()
     {
         viewport_width = viewport_height * ((f32)WIDTH/(f32)HEIGHT);
     }
-    Camera camera = {};
 
     v3 viewport_u = V3(viewport_width, 0.0f, 0.0f);
     v3 viewport_v = V3(0.0f, -viewport_height, 0.0f);
 
-    camera.delta_u = v3_scalar_div(viewport_u, (f32)WIDTH);
-    camera.delta_v = v3_scalar_div(viewport_v, (f32)HEIGHT);
+    v3 delta_u = v3_scalar_div(viewport_u, (f32)WIDTH);
+    v3 delta_v = v3_scalar_div(viewport_v, (f32)HEIGHT);
 
-    camera.position = V3(0.0f, 0.0f, 0.0f);
-    v3 camera_to_viewport = v3_sub(camera.position, V3(0.0f, 0.0f, viewport_dist));
+    v3 camera_position = V3(0.0f, 0.0f, 0.0f);
+    v3 camera_to_viewport = v3_sub(camera_position, V3(0.0f, 0.0f, viewport_dist));
     v3 viewport_upper_left = v3_sub(v3_sub(camera_to_viewport, v3_scalar_div(viewport_u, 2.0f)), v3_scalar_div(viewport_v, 2.0f));
-    camera.origin_pixel = v3_add(viewport_upper_left, v3_scalar_mul(v3_add(camera.delta_u, camera.delta_v), 0.5f));
+    v3 origin_pixel = v3_add(viewport_upper_left, v3_scalar_mul(v3_add(delta_u, delta_v), 0.5f));
 
-    u32 bytes_per_pixel = 4;
-    u32 pitch = WIDTH * bytes_per_pixel;
-    void *memory = malloc(WIDTH * HEIGHT * bytes_per_pixel);
-
-#if 1
-    render_scene(memory, pitch, &world, camera);
-#else
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    SDL_Texture *texture;
-
-    if(SDL_Init(SDL_INIT_VIDEO) < 0)
+    for(int y = 0; 
+            y < HEIGHT; 
+            ++y)
     {
-        printf("Unable to initialize sdl %s", SDL_GetError());
-    }
-
-    window = SDL_CreateWindow("RayTraycer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
-            WIDTH, HEIGHT, SDL_WINDOW_MAXIMIZED);
-
-    if(window)
-    {
-
-        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-        if(renderer)
+        for(int x = 0; 
+                x < WIDTH; 
+                ++x)
         {
-            // TODO: Change to ARGB if I add alpha blending
-            texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, 
-                    SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
-            bool running = 1;
-            render_scene(memory, pitch, &world, camera);
-            while(running)
-            {
-                SDL_Event event;
-                while(SDL_PollEvent(&event))
-                {
-                    switch(event.type)
-                    {
-                        case(SDL_QUIT):
-                        {
-                            running = 0;
-                        }break;
-                    }
-                }
 
-                update_window(renderer, texture, memory, pitch);
-            }
+            v3 pixel_center = v3_add(origin_pixel, v3_add(v3_scalar_mul(delta_u, x), v3_scalar_mul(delta_v, y)));
+
+            v3 ray_origin = camera_position;
+            v3 ray_direction = NOZ(v3_sub(pixel_center, ray_origin));
+
+            v3 packed_color = ray_cast(&world, ray_origin, ray_direction);
+
+            u32 color = pack_color_be(packed_color);
+
+            IMAGE[y][x] = color;
+
         }
-        else
-        {
-            printf("Unable to create renderer %s\n", SDL_GetError());
-        }
-    }
-    else
-    {
-        printf("Unable to create window %s\n", SDL_GetError());
+        printf("\rRaying %d%%...    ", 100 * y / HEIGHT);
     }
 
-    printf("Hello SDL\n");
-#endif
+    printf("Done...\n");
+    save_to_ppm("output.ppm");
+
     return(0);
 }
