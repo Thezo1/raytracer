@@ -9,6 +9,8 @@
 #define F32MIN -FLT_MAX
 
 typedef float f32;
+typedef double f64;
+
 typedef uint32_t u32;
 typedef uint8_t u8;
 
@@ -16,6 +18,28 @@ typedef struct
 {
     f32 x, y;
 }v2;
+
+extern inline f32 FRAND()
+{
+    f32 result = (f32)rand()/((f32)RAND_MAX+1.0f);
+    return(result);
+}
+
+extern inline f64 DRAND()
+{
+    f64 result = rand()/(RAND_MAX+1.0);
+    return(result);
+}
+
+extern inline f32 f32_random_within(f32 min, f32 max)
+{
+    return min + (max-min)*FRAND();
+}
+
+extern inline f32 f64_random_within(f32 min, f32 max)
+{
+    return min + (max-min)*DRAND();
+}
 
 extern inline v2 V2(f32 A, f32 B)
 {
@@ -87,6 +111,15 @@ extern inline v3 v3_sub(v3 A, v3 B)
     result.x = A.x - B.x;
     result.y = A.y - B.y;
     result.z = A.z - B.z;
+    return(result);
+}
+
+extern inline v3 v3_mul(v3 A, v3 B)
+{
+    v3 result;
+    result.x = A.x * B.x;
+    result.y = A.y * B.y;
+    result.z = A.z * B.z;
     return(result);
 }
 
@@ -189,11 +222,51 @@ extern inline v3 NOZ(v3 A)
     return(result);
 }
 
+extern inline v3 reflect(v3 I, v3 N) 
+{
+    v3 result = {};
+    result = v3_sub(I, v3_scalar_mul(N, (2.0f * dot(I, N))));
+    return(result);
+}
 
+extern inline v3 v3_random()
+{
+    return(V3(DRAND(), DRAND(), DRAND()));
+}
+
+extern inline v3 v3_random_within(f32 min, f32 max)
+{
+    return(V3(f32_random_within(min, max), f32_random_within(min, max), f32_random_within(min, max)));
+}
+
+extern inline v3 random_in_unit_sphere()
+{
+    while(1)
+    {
+        v3 p = v3_random_within(-1.0f, 1.0f);
+        if(length_sq(p) < 1)
+        {
+            return p;
+        }
+    }
+}
+
+extern inline v3 random_on_hemishere(v3 normal)
+{
+    v3 on_unit_sphere = NOZ(random_in_unit_sphere());
+    if(dot(on_unit_sphere, normal) > 0.0f)
+    {
+        return(on_unit_sphere);
+    }
+    else
+    {
+        return(v3_neg(on_unit_sphere));
+    }
+}
 
 typedef struct
 {
-    f32 x, y, z, a;
+    f32 x, y, z, w;
 }v4;
 
 extern inline v4 V4(f32 A, f32 B, f32 C, f32 D)
@@ -203,7 +276,7 @@ extern inline v4 V4(f32 A, f32 B, f32 C, f32 D)
     result.x = A;
     result.y = B;
     result.z = C;
-    result.a = D;
+    result.w = D;
 
     return(result);
 }
@@ -218,7 +291,22 @@ extern inline f32 POW(f32 B, f32 P)
 
 // NOTE: Don't really know if the disparity between big and little endian
 // id Correct
-extern inline u32 pack_color_le(v3 color)
+extern inline u32 pack_color_litle(v3 color)
+{
+    u32 result;
+
+    u32 r = (u32)(color.x * 255);
+    u32 g = (u32)(color.y * 255);
+    u32 b = (u32)(color.z * 255);
+
+    result = (b << 8*0) | 
+             (g << 8*1) | 
+             (r << 8*2);
+
+    return(result);
+}
+
+extern inline u32 pack_color_big(v3 color)
 {
     u32 result;
 
@@ -233,24 +321,272 @@ extern inline u32 pack_color_le(v3 color)
     return(result);
 }
 
-extern inline u32 pack_color_be(v3 color)
+extern inline f32 clamp(f32 num, f32 min, f32 max)
 {
-    u32 result;
+    if(num > max)
+    {
+        return(max);
+    }
 
-    u32 r = (u32)(color.x * 255);
-    u32 g = (u32)(color.y * 255);
-    u32 b = (u32)(color.z * 255);
+    if(num < min)
+    {
+        return(min);
+    }
+    return(num);
+}
 
-    result = (b << 8*0) | 
-             (g << 8*1) | 
-             (r << 8*2);
+typedef struct m4x4
+{
+    v4 rows[4];
+}m4x4;
+
+inline m4x4 m4x4_mul(m4x4 a, m4x4 b)
+{
+    m4x4 result = {};
+
+	result.rows[0] = V4(
+		a.rows[0].x * b.rows[0].x  +  a.rows[0].y * b.rows[1].x  +  a.rows[0].z * b.rows[2].x  +  a.rows[0].w * b.rows[3].x,
+		a.rows[0].x * b.rows[0].y  +  a.rows[0].y * b.rows[1].y  +  a.rows[0].z * b.rows[2].y  +  a.rows[0].w * b.rows[3].y,
+		a.rows[0].x * b.rows[0].z  +  a.rows[0].y * b.rows[1].z  +  a.rows[0].z * b.rows[2].z  +  a.rows[0].w * b.rows[3].z,
+		a.rows[0].x * b.rows[0].w  +  a.rows[0].y * b.rows[1].w  +  a.rows[0].z * b.rows[2].w  +  a.rows[0].w * b.rows[3].w
+	);
+
+	result.rows[1] = V4(
+		a.rows[1].x * b.rows[0].x  +  a.rows[1].y * b.rows[1].x  +  a.rows[1].z * b.rows[2].x  +  a.rows[1].w * b.rows[3].x,
+		a.rows[1].x * b.rows[0].y  +  a.rows[1].y * b.rows[1].y  +  a.rows[1].z * b.rows[2].y  +  a.rows[1].w * b.rows[3].y,
+		a.rows[1].x * b.rows[0].z  +  a.rows[1].y * b.rows[1].z  +  a.rows[1].z * b.rows[2].z  +  a.rows[1].w * b.rows[3].z,
+		a.rows[1].x * b.rows[0].w  +  a.rows[1].y * b.rows[1].w  +  a.rows[1].z * b.rows[2].w  +  a.rows[1].w * b.rows[3].w
+	);
+
+	result.rows[2] = V4(
+		a.rows[2].x * b.rows[0].x  +  a.rows[2].y * b.rows[1].x  +  a.rows[2].z * b.rows[2].x  +  a.rows[2].w * b.rows[3].x,
+		a.rows[2].x * b.rows[0].y  +  a.rows[2].y * b.rows[1].y  +  a.rows[2].z * b.rows[2].y  +  a.rows[2].w * b.rows[3].y,
+		a.rows[2].x * b.rows[0].z  +  a.rows[2].y * b.rows[1].z  +  a.rows[2].z * b.rows[2].z  +  a.rows[2].w * b.rows[3].z,
+		a.rows[2].x * b.rows[0].w  +  a.rows[2].y * b.rows[1].w  +  a.rows[2].z * b.rows[2].w  +  a.rows[2].w * b.rows[3].w
+	);
+
+	result.rows[3] = V4(
+		a.rows[3].x * b.rows[0].x  +  a.rows[3].y * b.rows[1].x  +  a.rows[3].z * b.rows[2].x  +  a.rows[3].w * b.rows[3].x,
+		a.rows[3].x * b.rows[0].y  +  a.rows[3].y * b.rows[1].y  +  a.rows[3].z * b.rows[2].y  +  a.rows[3].w * b.rows[3].y,
+		a.rows[3].x * b.rows[0].z  +  a.rows[3].y * b.rows[1].z  +  a.rows[3].z * b.rows[2].z  +  a.rows[3].w * b.rows[3].z,
+		a.rows[3].x * b.rows[0].w  +  a.rows[3].y * b.rows[1].w  +  a.rows[3].z * b.rows[2].w  +  a.rows[3].w * b.rows[3].w
+	);
+    return(result);
+}
+
+
+inline v3 m4x4_mul_point(m4x4 m, v3 pt)
+{
+	return V3(
+		(pt.x * m.rows[0].x) + (pt.y * m.rows[1].x) + (pt.z * m.rows[2].x) + m.rows[3].x,
+		(pt.x * m.rows[0].y) + (pt.y * m.rows[1].y) + (pt.z * m.rows[2].y) + m.rows[3].y,
+		(pt.x * m.rows[0].z) + (pt.y * m.rows[1].z) + (pt.z * m.rows[2].z) + m.rows[3].z
+	);
+}
+
+inline v3 m4x4_mul_vector(m4x4 m, v3 v)
+{
+	return V3(
+		(v.x * m.rows[0].x) + (v.y * m.rows[1].x) + (v.z * m.rows[2].x),
+		(v.x * m.rows[0].y) + (v.y * m.rows[1].y) + (v.z * m.rows[2].y),
+		(v.x * m.rows[0].z) + (v.y * m.rows[1].z) + (v.z * m.rows[2].z)
+	);
+}
+
+inline m4x4 m4x4_transpose(m4x4 a)
+{
+    m4x4 result = {};
+    
+    result.rows[0] = V4(a.rows[0].x, a.rows[1].x, a.rows[2].x, a.rows[3].x);
+    result.rows[1] = V4(a.rows[0].y, a.rows[1].y, a.rows[2].y, a.rows[3].y);
+    result.rows[2] = V4(a.rows[0].z, a.rows[1].z, a.rows[2].z, a.rows[3].z);
+    result.rows[3] = V4(a.rows[0].w, a.rows[1].w, a.rows[2].w, a.rows[3].w);
+
+    return result;
+}
+
+inline m4x4 m4x4_identity() 
+{
+
+    m4x4 result = {};
+
+	result.rows[0] = V4(1.0, 0.0, 0.0, 0.0);
+	result.rows[1] = V4(0.0, 1.0, 0.0, 0.0);
+	result.rows[2] = V4(0.0, 0.0, 1.0, 0.0);
+	result.rows[3] = V4(0.0, 0.0, 0.0, 1.0);
 
     return(result);
 }
-extern inline f32 FRAND()
+
+
+extern inline bool m4x4_invert(m4x4 m, m4x4 *invOut)
 {
-    f32 result = rand()/((f32)RAND_MAX+1.0f);
-    return(result);
+    m4x4 inv;
+    f32 det;
+    int i;
+
+    // 0
+    inv.rows[0].x = m.rows[1].y  * m.rows[2].z  * m.rows[3].w - 
+                    m.rows[1].y  * m.rows[2].w  * m.rows[3].z - 
+                    m.rows[2].y  * m.rows[1].z  * m.rows[3].w + 
+                    m.rows[2].y  * m.rows[1].w  * m.rows[3].z +
+                    m.rows[3].y  * m.rows[1].z  * m.rows[2].w - 
+                    m.rows[3].y  * m.rows[1].w  * m.rows[2].z;
+
+    // 4
+    inv.rows[1].x = -m.rows[1].x  * m.rows[2].z  * m.rows[3].w + 
+                     m.rows[1].x  * m.rows[2].w  * m.rows[3].z + 
+                     m.rows[2].x  * m.rows[1].z  * m.rows[3].w - 
+                     m.rows[2].x  * m.rows[1].w  * m.rows[3].z - 
+                     m.rows[3].x  * m.rows[1].z  * m.rows[2].w + 
+                     m.rows[3].x  * m.rows[1].w  * m.rows[2].z;
+
+    // 8
+    inv.rows[2].x = m.rows[1].x  * m.rows[2].y * m.rows[3].w - 
+                    m.rows[1].x  * m.rows[2].w * m.rows[3].y - 
+                    m.rows[2].x  * m.rows[1].y * m.rows[3].w + 
+                    m.rows[2].x  * m.rows[1].w * m.rows[3].y + 
+                    m.rows[3].x  * m.rows[1].y * m.rows[2].w - 
+                    m.rows[3].x  * m.rows[1].w * m.rows[2].y;
+
+    // 12
+    inv.rows[3].x = -m.rows[1].x  * m.rows[2].y  * m.rows[3].z + 
+                     m.rows[1].x  * m.rows[2].z  * m.rows[3].y +
+                     m.rows[2].x  * m.rows[1].y  * m.rows[3].z - 
+                     m.rows[2].x  * m.rows[1].z  * m.rows[3].y - 
+                     m.rows[3].x  * m.rows[1].y  * m.rows[2].z + 
+                     m.rows[3].x  * m.rows[1].z  * m.rows[2].y;
+
+    // 1
+    inv.rows[0].y = -m.rows[0].y  * m.rows[2].z  * m.rows[3].w + 
+                     m.rows[0].y  * m.rows[2].w  * m.rows[3].z + 
+                     m.rows[2].y  * m.rows[0].z  * m.rows[3].w - 
+                     m.rows[2].y  * m.rows[0].w  * m.rows[3].z - 
+                     m.rows[3].y  * m.rows[0].z  * m.rows[2].w + 
+                     m.rows[3].y  * m.rows[0].w  * m.rows[2].z;
+
+    // 5
+    inv.rows[1].y = m.rows[0].x  * m.rows[2].z  * m.rows[3].w - 
+                    m.rows[0].x  * m.rows[2].w  * m.rows[3].z - 
+                    m.rows[2].x  * m.rows[0].z  * m.rows[3].w + 
+                    m.rows[2].x  * m.rows[0].w  * m.rows[3].z + 
+                    m.rows[3].x  * m.rows[0].z  * m.rows[2].w - 
+                    m.rows[3].x  * m.rows[0].w  * m.rows[2].z;
+
+    // 9
+    inv.rows[2].y = -m.rows[0].x  * m.rows[2].y    * m.rows[3].w + 
+                     m.rows[0].x  * m.rows[2].w    * m.rows[3].y + 
+                     m.rows[2].x  * m.rows[0].y    * m.rows[3].w - 
+                     m.rows[2].x  * m.rows[0].w    * m.rows[3].y - 
+                     m.rows[3].x  * m.rows[0].y    * m.rows[2].w + 
+                     m.rows[3].x  * m.rows[0].w    * m.rows[2].y;
+
+    // 13
+    inv.rows[3].y = m.rows[0].x  * m.rows[2].y  * m.rows[3].z - 
+                    m.rows[0].x  * m.rows[2].z  * m.rows[3].y - 
+                    m.rows[2].x  * m.rows[0].y  * m.rows[3].z + 
+                    m.rows[2].x  * m.rows[0].z  * m.rows[3].y + 
+                    m.rows[3].x  * m.rows[0].y  * m.rows[2].z - 
+                    m.rows[3].x  * m.rows[0].z  * m.rows[2].y;
+
+    // 2
+    inv.rows[0].z = m.rows[0].y  * m.rows[1].z * m.rows[3].w - 
+                    m.rows[0].y  * m.rows[1].w * m.rows[3].z - 
+                    m.rows[1].y  * m.rows[0].z * m.rows[3].w + 
+                    m.rows[1].y  * m.rows[0].w * m.rows[3].z + 
+                    m.rows[3].y  * m.rows[0].z * m.rows[1].w - 
+                    m.rows[3].y  * m.rows[0].w * m.rows[1].z;
+
+    // 6
+    inv.rows[1].z = -m.rows[0].x  * m.rows[1].z * m.rows[3].w + 
+                     m.rows[0].x  * m.rows[1].w * m.rows[3].z + 
+                     m.rows[1].x  * m.rows[0].z * m.rows[3].w - 
+                     m.rows[1].x  * m.rows[0].w * m.rows[3].z - 
+                     m.rows[3].x  * m.rows[0].z * m.rows[1].w + 
+                     m.rows[3].x  * m.rows[0].w * m.rows[1].z;
+
+    // 10
+    inv.rows[2].z = m.rows[0].x  * m.rows[1].y * m.rows[3].w - 
+                    m.rows[0].x  * m.rows[1].w * m.rows[3].y - 
+                    m.rows[1].x  * m.rows[0].y * m.rows[3].w + 
+                    m.rows[1].x  * m.rows[0].w * m.rows[3].y + 
+                    m.rows[3].x  * m.rows[0].y * m.rows[1].w - 
+                    m.rows[3].x  * m.rows[0].w * m.rows[1].y;
+
+    // 14
+    inv.rows[3].z = -m.rows[0].x  * m.rows[1].y * m.rows[3].z + 
+                     m.rows[0].x  * m.rows[1].z * m.rows[3].y + 
+                     m.rows[1].x  * m.rows[0].y * m.rows[3].z - 
+                     m.rows[1].x  * m.rows[0].z * m.rows[3].y - 
+                     m.rows[3].x  * m.rows[0].y * m.rows[1].z + 
+                     m.rows[3].x  * m.rows[0].z * m.rows[1].y;
+
+    // 3
+    inv.rows[0].w = -m.rows[0].y * m.rows[1].z * m.rows[2].w + 
+                     m.rows[0].y * m.rows[1].w * m.rows[2].z + 
+                     m.rows[1].y * m.rows[0].z * m.rows[2].w - 
+                     m.rows[1].y * m.rows[0].w * m.rows[2].z - 
+                     m.rows[2].y * m.rows[0].z * m.rows[1].w + 
+                     m.rows[2].y * m.rows[0].w * m.rows[1].z;
+
+    // 7
+    inv.rows[1].w = m.rows[0].x * m.rows[1].z * m.rows[2].w - 
+                    m.rows[0].x * m.rows[1].w * m.rows[2].z - 
+                    m.rows[1].x * m.rows[0].z * m.rows[2].w + 
+                    m.rows[1].x * m.rows[0].w * m.rows[2].z + 
+                    m.rows[2].x * m.rows[0].z * m.rows[1].w - 
+                    m.rows[2].x * m.rows[0].w * m.rows[1].z;
+
+    // 11
+    inv.rows[2].w = -m.rows[0].x * m.rows[1].y * m.rows[2].w + 
+                     m.rows[0].x * m.rows[1].w * m.rows[2].y + 
+                     m.rows[1].x * m.rows[0].y * m.rows[2].w - 
+                     m.rows[1].x * m.rows[0].w * m.rows[2].y - 
+                     m.rows[2].x * m.rows[0].y * m.rows[1].w + 
+                     m.rows[2].x * m.rows[0].w * m.rows[1].y;
+
+    // 15
+    inv.rows[3].w = m.rows[0].x * m.rows[1].y * m.rows[2].z - 
+                    m.rows[0].x * m.rows[1].z * m.rows[2].y - 
+                    m.rows[1].x * m.rows[0].y * m.rows[2].z + 
+                    m.rows[1].x * m.rows[0].z * m.rows[2].y + 
+                    m.rows[2].x * m.rows[0].y * m.rows[1].z - 
+                    m.rows[2].x * m.rows[0].z * m.rows[1].y;
+
+    det = m.rows[0].x * inv.rows[0].x + m.rows[0].y * inv.rows[1].x + m.rows[0].z * inv.rows[2].x + m.rows[0].w * inv.rows[3].x;
+
+    if (det == 0)
+    {
+        return false;
+    }
+
+    det = 1.0 / det;
+
+    for (i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            if(j%4 == 0)
+            {
+                invOut->rows[i].x = inv.rows[i].x * det;
+            }
+            else if(j%4 == 1)
+            {
+                invOut->rows[i].y = inv.rows[i].y * det;
+            }
+            else if(j%4 == 2)
+            {
+                invOut->rows[i].z = inv.rows[i].z * det;
+            }
+            else if(j%4 == 3)
+            {
+                invOut->rows[i].w = inv.rows[i].w * det;
+            }
+        }
+    }
+
+
+    return true;
 }
 
 #endif
