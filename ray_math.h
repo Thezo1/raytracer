@@ -281,6 +281,92 @@ extern inline v4 V4(f32 A, f32 B, f32 C, f32 D)
     return(result);
 }
 
+extern inline v4 v4_add(v4 A, v4 B)
+{
+    v4 result;
+    result.x = A.x + B.x;
+    result.y = A.y + B.y;
+    result.z = A.z + B.z;
+    result.w = A.w + B.w;
+    return(result);
+}
+
+extern inline v4 v4_sub(v4 A, v4 B)
+{
+    v4 result;
+    result.x = A.x - B.x;
+    result.y = A.y - B.y;
+    result.z = A.z - B.z;
+    result.w = A.w - B.w;
+    return(result);
+}
+
+extern inline v4 v4_mul(v4 A, v4 B)
+{
+    v4 result;
+    result.x = A.x * B.x;
+    result.y = A.y * B.y;
+    result.z = A.z * B.z;
+    result.w = A.w * B.w;
+    return(result);
+}
+
+extern inline v4 v4_neg(v4 A)
+{
+    v4 result;
+    result.x = -A.x;
+    result.y = -A.y;
+    result.z = -A.z;
+    result.w = -A.w;
+    return(result);
+}
+
+extern inline v4 v4_scalar_mul(v4 A, f32 S)
+{
+    v4 result;
+    result.x = A.x * S;
+    result.y = A.y * S;
+    result.z = A.z * S;
+    result.w = A.w * S;
+
+    return(result);
+}
+
+extern inline v4 v4_scalar_div(v4 A, f32 S)
+{
+    v4 result;
+    f32 inv = 1/S;
+    result.x = A.x * inv;
+    result.y = A.y * inv;
+    result.z = A.z * inv;
+    result.w = A.w * inv;
+
+    return(result);
+}
+
+extern inline v4 v4_scalar_add(v4 A, f32 S)
+{
+    v4 result;
+    result.x = A.x + S;
+    result.y = A.y + S;
+    result.z = A.z + S;
+    result.w = A.w + S;
+
+    return(result);
+}
+
+extern inline v4 Point(f32 A, f32 B, f32 C)
+{
+    v4 result = V4(A, B, C, 1);
+    return(result);
+}
+
+extern inline v4 Vector(f32 A, f32 B, f32 C)
+{
+    v4 result = V4(A, B, C, 0);
+    return(result);
+}
+
 #include<math.h>
 extern inline f32 POW(f32 B, f32 P)
 {
@@ -340,7 +426,7 @@ typedef struct m4x4
     v4 rows[4];
 }m4x4;
 
-inline m4x4 m4x4_mul(m4x4 a, m4x4 b)
+extern inline m4x4 m4x4_mul(m4x4 a, m4x4 b)
 {
     m4x4 result = {};
 
@@ -375,7 +461,7 @@ inline m4x4 m4x4_mul(m4x4 a, m4x4 b)
 }
 
 
-inline v3 m4x4_mul_point(m4x4 m, v3 pt)
+extern inline v3 m4x4_mul_point(m4x4 m, v3 pt)
 {
 	return V3(
 		(pt.x * m.rows[0].x) + (pt.y * m.rows[1].x) + (pt.z * m.rows[2].x) + m.rows[3].x,
@@ -384,7 +470,7 @@ inline v3 m4x4_mul_point(m4x4 m, v3 pt)
 	);
 }
 
-inline v3 m4x4_mul_vector(m4x4 m, v3 v)
+extern inline v3 m4x4_mul_vector(m4x4 m, v3 v)
 {
 	return V3(
 		(v.x * m.rows[0].x) + (v.y * m.rows[1].x) + (v.z * m.rows[2].x),
@@ -393,7 +479,7 @@ inline v3 m4x4_mul_vector(m4x4 m, v3 v)
 	);
 }
 
-inline m4x4 m4x4_transpose(m4x4 a)
+extern inline m4x4 m4x4_transpose(m4x4 a)
 {
     m4x4 result = {};
     
@@ -405,7 +491,7 @@ inline m4x4 m4x4_transpose(m4x4 a)
     return result;
 }
 
-inline m4x4 m4x4_identity() 
+extern inline m4x4 m4x4_identity() 
 {
 
     m4x4 result = {};
@@ -417,7 +503,6 @@ inline m4x4 m4x4_identity()
 
     return(result);
 }
-
 
 extern inline bool m4x4_invert(m4x4 m, m4x4 *invOut)
 {
@@ -587,6 +672,34 @@ extern inline bool m4x4_invert(m4x4 m, m4x4 *invOut)
 
 
     return true;
+}
+
+extern inline m4x4 m4x4_translation_matrix(v4 v)
+{
+    m4x4 result = m4x4_identity();
+
+	result.rows[0] = V4(1.0, 0.0, 0.0, v.x);
+	result.rows[1] = V4(0.0, 1.0, 0.0, v.y);
+	result.rows[2] = V4(0.0, 0.0, 1.0, v.z);
+	result.rows[3] = V4(0.0, 0.0, 0.0, 1.0);
+
+    return(result);
+}
+
+extern inline v4 m4x4_mul_v4(m4x4 mat, v4 v)
+{
+    v4 result = V4((mat.rows[0].x * v.x) + (mat.rows[0].y * v.y) + (mat.rows[0].z * v.z) + (mat.rows[0].w * v.w),
+                   (mat.rows[1].x * v.x) + (mat.rows[1].y * v.y) + (mat.rows[1].z * v.z) + (mat.rows[1].w * v.w),
+                   (mat.rows[2].x * v.x) + (mat.rows[2].y * v.y) + (mat.rows[2].z * v.z) + (mat.rows[2].w * v.w),
+                   (mat.rows[3].x * v.x) + (mat.rows[3].y * v.y) + (mat.rows[3].z * v.z) + (mat.rows[3].w * v.w));
+
+    return(result);
+}
+
+extern inline v4 m4x4_transform(m4x4 m, v4 v)
+{
+    v4 result = m4x4_mul_v4(m, v);
+    return(result);
 }
 
 #endif

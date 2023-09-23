@@ -52,24 +52,10 @@ int main(int argc, char *argv[])
 
     v3 color1 = V3(0.9, 0.6, 0.75);
     v3 color2 = V3(0.7, 0.1, 0.25);
-
-    u32 other_color = pack_color_big(color1);
     v3 color3 = v3_mul(color1, color2);
 
+    u32 other_color = pack_color_big(color1);
     u32 color = pack_color_big(color3);
-
-    m4x4 mat1 = {};
-    mat1.rows[0] = V4(8, -5, 9, 2);
-    mat1.rows[1] = V4(7, 5, 6, 1);
-    mat1.rows[2] = V4(-6, 0, 9, 6);
-    mat1.rows[3] = V4(-3, 0, -9, -4);
-
-    m4x4 inv = {};
-
-    if(!m4x4_invert(mat1, &inv))
-    {
-        printf("Cannot invert\n");
-    }
 
     for(int y = 0;
             y < HEIGHT;
