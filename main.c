@@ -57,23 +57,32 @@ int main(int argc, char *argv[])
     u32 other_color = pack_color_big(color1);
     u32 color = pack_color_big(color3);
 
-    for(int y = 0;
-            y < HEIGHT;
-            ++y)
-    {
-        for(int x = 0;
-                x < WIDTH;
-                ++x)
-        {
+    v4 center = Point(0., 0., 0.);
+    f32 radius = 80.0;
 
-            if(x <= WIDTH/2)
-            {
-                IMAGE[y][x] = color;
-            }
-            else
-            {
-                IMAGE[y][x] = other_color;
-            }
+    f32 upper = center.y + radius;
+
+    v4 upper_point = Point(0.0, upper, 0.0);
+
+    v4 pos = upper_point;
+
+    for(int i = 0;
+            i < 12;
+            ++i)
+    {
+        m4x4 inv_o_clock_matrix = {};
+        bool can_invert = m4x4_invert(m4x4_rotateZ_matrix(PI32/6.), &inv_o_clock_matrix);
+
+        if(can_invert)
+        {
+            v4 o_clock = v4_transform(inv_o_clock_matrix, pos);
+
+            int canvas_x = ((f32)WIDTH/2) + o_clock.x;
+            int canvas_y = ((f32)HEIGHT/2) - o_clock.y;
+
+            IMAGE[canvas_y][canvas_x] = other_color;
+
+            pos = o_clock;
         }
     }
 

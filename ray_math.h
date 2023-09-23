@@ -7,6 +7,7 @@
 
 #define F32MAX FLT_MAX
 #define F32MIN -FLT_MAX
+#define PI32 3.14159265358979f
 
 typedef float f32;
 typedef double f64;
@@ -676,11 +677,59 @@ extern inline bool m4x4_invert(m4x4 m, m4x4 *invOut)
 
 extern inline m4x4 m4x4_translation_matrix(v4 v)
 {
-    m4x4 result = m4x4_identity();
+    m4x4 result = {};
 
 	result.rows[0] = V4(1.0, 0.0, 0.0, v.x);
 	result.rows[1] = V4(0.0, 1.0, 0.0, v.y);
 	result.rows[2] = V4(0.0, 0.0, 1.0, v.z);
+	result.rows[3] = V4(0.0, 0.0, 0.0, 1.0);
+
+    return(result);
+}
+
+extern inline m4x4 m4x4_scale_matrix(v4 v)
+{
+    m4x4 result = {};
+
+	result.rows[0] = V4(v.x, 0.0, 0.0, 0.0);
+	result.rows[1] = V4(0.0, v.y, 0.0, 0.0);
+	result.rows[2] = V4(0.0, 0.0, v.z, 0.0);
+	result.rows[3] = V4(0.0, 0.0, 0.0, 1.0);
+
+    return(result);
+}
+
+extern inline m4x4 m4x4_rotateX_matrix(f32 r)
+{
+    m4x4 result = {};
+
+	result.rows[0] = V4(0.0, 0.0, 0.0, 0.0);
+	result.rows[1] = V4(0.0, cosf(r), -sinf(r), 0.0);
+	result.rows[2] = V4(0.0, sinf(r), cos(r), 0.0);
+	result.rows[3] = V4(0.0, 0.0, 0.0, 1.0);
+
+    return(result);
+}
+
+extern inline m4x4 m4x4_rotateY_matrix(f32 r)
+{
+    m4x4 result = {};
+
+	result.rows[0] = V4(cosf(r), 0.0, sinf(r), 0.0);
+	result.rows[1] = V4(0.0, 1.0, 0.0, 0.0);
+	result.rows[2] = V4(-sinf(r), 0.0, cosf(r), 0.0);
+	result.rows[3] = V4(0.0, 0.0, 0.0, 1.0);
+
+    return(result);
+}
+
+extern inline m4x4 m4x4_rotateZ_matrix(f32 r)
+{
+    m4x4 result = {};
+
+	result.rows[0] = V4(cosf(r), -sinf(r), 0.0, 0.0);
+	result.rows[1] = V4(sinf(r), cosf(r), 0.0, 0.0);
+	result.rows[2] = V4(0.0, 0.0, 1.0, 0.0);
 	result.rows[3] = V4(0.0, 0.0, 0.0, 1.0);
 
     return(result);
@@ -696,7 +745,7 @@ extern inline v4 m4x4_mul_v4(m4x4 mat, v4 v)
     return(result);
 }
 
-extern inline v4 m4x4_transform(m4x4 m, v4 v)
+extern inline v4 v4_transform(m4x4 m, v4 v)
 {
     v4 result = m4x4_mul_v4(m, v);
     return(result);
